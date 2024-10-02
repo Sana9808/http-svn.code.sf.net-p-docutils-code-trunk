@@ -1,2 +1,197 @@
-# http-svn.code.sf.net-p-docutils-code-trunk
-#! /bin/bash # $Id: docutils-update.local 8792 2021-07-07 11:52:58Z grubert $ # # สคริปต์นี้อัปเดตเว็บไซต์ Docutils # # เว็บรูทประกอบด้วย  # # * ไฟล์และไดเรกทอรีจาก ``trunk/web``: #    # * ไฟล์และไดเรกทอรีจาก ``trunk/docutils``: # ไฟล์ทั้งหมดเพื่อให้ง่ายต่อการอ้างอิงในอีเมล # # * และ ``ลำตัว/แซนด์บ็อกซ์`` # # ความสนใจ # # เอกสาร .html ใดๆ ที่มีไฟล์ .txt ที่เกี่ยวข้องจะถูกสร้างขึ้นใหม่  # หาก .txt มีการเปลี่ยนแปลง แต่ไม่มีการสร้างไฟล์ .html ใหม่ # # * เรื่องตลก: sf ซ่อนไฟล์ README.txt # # ความสนใจ # # ไดเร็กทอรีอาจมีไฟล์ Makefile.docutils-update ด้วย #คำแนะนำพิเศษ. ใช้ในเอกสาร/ผู้ใช้เพื่อโทร rst2s5 # เพิ่ม --smartquotes=true เพื่อแปลง smartquotes # อาจเพิ่มการรักษาพิเศษและลบวิธีแก้ปัญหาทั่วไปนี้ # # ตัวเลือก: # -f อย่าให้ข้อเสนอแนะ # -t เรียกใช้สคริปต์ในโหมดติดตาม ("set -o xtrace") # -u สร้าง .html ใหม่โดยไม่มีเงื่อนไข # -v เรียกใช้อย่างละเอียด # -q วิ่งเงียบ # # ข้อกำหนดเบื้องต้น:  #  # ออกเมื่อผิดพลาด ตั้ง -e  # ทำให้กลุ่มไฟล์ที่สร้างขึ้นใหม่ทั้งหมดเขียนได้ umask 002  # URL สำหรับการชำระเงินโครงการ SVN: svnurl=http://svn.code.sf.net/p/docutils/code/trunk  htmlfilelist=`pwd`/htmlfiles.lst basedir=`pwd`/update-dir ถ้า [ ! -e $basedir ] ; แล้ว     ทดสอบ -d $basedir || mkdir $basedir fi โครงการ=docutils # $auxdir ไม่ใช่สาธารณะ ... และไม่จำเป็นหากเรียกใช้ในเครื่อง  auxdir=$basedir/aux ทดสอบ -d $auxdir || mkdir $auxdir # $htdocsdest เป็นปลายทางสำหรับ htdocs และจะถูกย้ายไปที่ # เซิร์ฟเวอร์อื่นในภายหลัง; ดังนั้นเราจึงทำให้มันไม่เป็นสาธารณะ (ภายใต้ $auxdir) htdocsdest=$auxdir/htdocs ทดสอบ -d $htdocsdest || mkdir $htdocsdest # จะสร้างสแน็ปช็อตได้ที่ไหน (ไม่ใช่สาธารณะ) snapshotdir=$auxdir/snapshots ทดสอบ -d $snapshotdir || mkdir $snapshotdir  # htdocs ไดเรกทอรีบน SF.net remoteproject=/home/project-web/docutils remotehtdocs=$remoteproject/htdocs  # ชำระเงินในพื้นที่ pylib=$auxdir/lib/python lib=$pylib/$project # ล็อคไดเรกทอรี lockdir=$auxdir/lock  # URL ฐานโครงการ (สำหรับแผนผังเว็บไซต์) โดยไม่มีเครื่องหมายทับ # TODO เปลี่ยนเป็น .io ? baseurl="http://docutils.sourceforge.net"  ส่งออก PYTHONPATH=$pylib:$lib:$lib/extras ส่งออก PATH=$lib/tools:$PATH  ติดตาม=0 ไม่มีเงื่อนไข=0 ละเอียด=0 ข้อเสนอแนะ=1  ในขณะที่ getopts ftuv opt ทำ     กรณี $ เลือกใน         ฉ) ข้อเสนอแนะ=;;         t) ติดตาม=1;;         u) ไม่มีเงื่อนไข=1;;         v) ละเอียด=1;;         q) ละเอียด=0;;         \?) ทางออก 2;;     esac เสร็จแล้ว shift `expr $OPTIND - 1`  ฟังก์ชัน print_feedback () {     ทดสอบ $feedback &amp;&amp; echo "$1" || จริง }  print_feedback 'กำลังเริ่มการรันการอัปเดตเอกสาร...'  ถ้า [ $trace -eq 1 -o $verbose -eq 1 ] ; แล้ว     set -o xtrace fi  #รับล็อคอิน ถ้า ! mkdir $lockdir; แล้ว     เสียงก้อง     echo ไม่สามารถสร้างล็อกไดเร็กทอรีที่     echo $lockdir     เสียงก้อง     echo โปรดตรวจสอบให้แน่ใจว่าไม่มีผู้ใช้รายอื่นกำลังเรียกใช้สคริปต์นี้     echo และลบไดเร็กทอรี     ทางออก 1 fi # ทำความสะอาดเสมอเมื่อออก กับดัก "rm -rf $lockdir; trap - 0; exit 1" 0 1 2 3 15 # ตรวจสอบให้แน่ใจว่าไดเร็กทอรีล็อกถูกลบ (เช่น rwx) โดย group . อื่น # สมาชิก (ในกรณีที่สคริปต์นี้ขัดข้องหลังจากคัดลอกไฟล์ลงใน # ไดเรกทอรี) chmod 0770 $lockdir  #อัพเดทพื้นที่ห้องสมุด ถ้า [ -e $lib ] ; แล้ว     cd $lib     svn ขึ้น --เงียบ อื่น     ทดสอบ -d $pylib || mkdir -p $pylib     cd $pylib     svn ชำระเงิน $svnurl/docutils fi  # -------------------- ภาพรวม: --------------------  #รวบรวมวัตถุดิบ cd $snapshotdir สำหรับ DIR ในเว็บ docutils sandbox ; ทำ     ทดสอบ -d $DIR || svn ชำระเงิน $svnurl/$DIR เสร็จแล้ว # BUG หากเช็คเอาท์ครั้งแรก มีการเปลี่ยนแปลง haschanges="`svn up docutils sandbox web | grep -v '^At revision '; true`"  # ตรวจสอบให้แน่ใจว่าได้ตั้งค่าการอนุญาตไดเรกทอรีที่เหมาะสมเพื่อให้ไฟล์สามารถ # แก้ไขโดยผู้ใช้หลายคน การเปลี่ยนการอนุญาตของไฟล์คือ # อาจไม่จำเป็นเพราะไฟล์สามารถลบและสร้างใหม่ได้ # อย่าเปลี่ยนการอนุญาตของไดเร็กทอรี aux เพื่อให้ไม่เป็นสาธารณะ # (แต่เปลี่ยนการอนุญาตสำหรับไดเรกทอรีย่อยทั้งหมด) ค้นหา $basedir -name aux -o -type d -print0 | xargs -0 chmod ug+rwxs 2> /dev/null || จริง  # สร้างสแน็ปช็อต ไม่รวม='--ไม่รวม=.svn' tar -cz $exclude -f $project-snapshot.tgz $project tar -cz $exclude -f $project-sandbox-snapshot.tgz sandbox  # -------------------- htdocs: --------------------  cd $snapshotdir  # TODO นี้ใช้ไม่ได้กับ macosx ฟังก์ชัน copy_to_htdocsdest () {     ค้นหา "$@" -type d -name .svn -prune -o \( -type f -o -type l \) -print0 | \         xargs -0 cp --no-dereference --update --parents \             --target-directory=$htdocsdest }  # อัปเดต htdocs copy_to_htdocsdest sandbox (cd $project; copy_to_htdocsdest *) (เว็บซีดี copy_to_htdocsdest * .[^.]*)  # อัปเดตเอกสาร HTML cd $htdocsdest/tools  ถ้า [ $trace -eq 0] ; แล้ว     ตั้งค่า +o xtrace fi  # 1 Makefiles ท้องถิ่น สำหรับ makefile ใน `find .. -name Makefile.docutils-update` ; ทำ     dir=`dirname $makefile`     ( cd $dir ; make -f Makefile.docutils-update -s ) เสร็จแล้ว  cd $htdocsdest  # 2 สร้างไฟล์ html ที่ว่างเปล่าและเก่าเพื่อบังคับให้สร้าง # สำหรับ txt ใด ๆ ภายใต้ เอกสาร ? ค้นหาเอกสาร -type f -and -name \*.txt -print | ( \ ในขณะที่อ่าน -r txtfile ; ทำ     dir=`dirname $txtfile`     base=`ชื่อฐาน $txtfile .txt`     htmlfile=$dir/$base.html     ถ้า [ ! -e $htmlfile ] ; แล้ว         print_feedback "แตะ $htmlfile"         แตะ -t 200001010101 $htmlfile     fi เสร็จแล้ว )  # สำหรับ README.txt ใด ๆ ภายใต้แซนด์บ็อกซ์ ค้นหา sandbox -type f -and \( -name README.txt -o -name README \) -print | ( \ ในขณะที่อ่าน -r txtfile ; ทำ     dir=`dirname $txtfile`     base=`ชื่อฐาน $txtfile .txt`     htmlfile=$dir/$base.html     ถ้า [ ! -e $htmlfile ] ; แล้ว         print_feedback "แตะ $htmlfile"         แตะ -t 200001010101 $htmlfile     fi เสร็จแล้ว )  # สำหรับไฟล์ใด ๆ ใน htmlfilelist ให้สร้างไฟล์ที่หายไปด้วย mtime แบบเก่า ในขณะที่อ่าน -r htmlfile ; ทำ     ถ้า [ ! -d `dirname $htmlfile` ] ; แล้ว         print_feedback "รายการไฟล์ html แบบเก่า: $htmlfile"     เอลฟ์ [ ! -e $htmlfile ] ; แล้ว         print_feedback "แตะ $htmlfile"         แตะ -t 200001010101 $htmlfile     fi เสร็จสิ้น &lt; $htmlfilelist  # 3. สร้าง / สร้าง html จาก txt . อีกครั้ง cd $htdocsdest  # สิ่งที่ต้องทำ buildhtml.py ?  สำหรับ htmlfile ใน `find . -name '*.html'' ; ทำ     dir=`dirname $htmlfile`     base=`ชื่อฐาน $htmlfile .html`     # การทดสอบการใช้งานและแซนด์บ็อกซ์อาจไม่มี reST และ html ในไดเรกทอรีเดียวกัน     ถ้า [ "$base" == "standalone_rst_html4strict" ] ; แล้ว         print_feedback "ข้าม: $dir $base"     อื่น         txtfile=$dir/$base.txt         ถ้า [ ! -e $txtfile ] ; แล้ว             txtfile=$dir/$base.rst         fi         ถ้า [ ! -e $txtfile ] ; แล้ว             txtfile=$dir/$base         fi         ถ้า [ ! -e $txtfile ] ; แล้ว             print_feedback "เตือน: ไม่พบอินพุต: $dir $base"         อื่น             ถ้า [ $unconditional -eq 1 -o $txtfile -nt $htmlfile ] ; แล้ว                 ถ้า [ "${base:0:4}" == "pep-" ] ; แล้ว                     print_feedback "$txtfile (PEP)"                     หลาม $lib/tools/rstpep2html.py --config=$dir/docutils.conf $txtfile $htmlfile                     haschanges=1                 อื่น                     print_feedback "$txtfile"                     หลาม $lib/tools/rst2html5.py --config=$dir/docutils.conf $txtfile $htmlfile                     haschanges=1                 fi             fi         fi     fi เสร็จแล้ว  ถ้า [ $trace -eq 1 -o $verbose -eq 1 ] ; แล้ว     set -o xtrace fi  # -------------------- แผนผังเว็บไซต์ XML สำหรับเครื่องมือค้นหา: --------------------  cd $htdocsdest  # อัปเดตแผนผังเว็บไซต์เฉพาะในกรณีที่มีการเปลี่ยนแปลงเนื่องจากต้องใช้เวลา # เวลา CPU มาก ถ้า test -n "$ haschanges"; แล้ว     (         echo '&lt;?xml version="1.0" encoding="UTF-8"?>'         echo '&lt;urlset xmlns="http://www.google.com/schema/sitemap/0.84">'         ถ้า [ $trace -eq 0] ; แล้ว             ตั้งค่า +o xtrace         fi         หา . -name '.[^.]*' -prune -o -type d -printf '%p/\n' \                 -o \( -type f -o -type l \) -print | \             ในขณะที่อ่านฉัน; ทำ                 #i คือชื่อไฟล์                 ถ้าทดสอบ "$i" == ./; แล้ว                     #โฮมเพจ.                     i=index.html                     url="$baseurl/"                 elif ทดสอบ "$i" == ./sitemap -o "${i: -1}" == / -a -f "${i}index.html"; แล้ว                     # นี่คือไดเร็กทอรีและมี index.html ดังนั้นเราจึง                     #ไม่ต้องใส่ก็ได้                     ดำเนินต่อ                 อื่น                     url="$baseurl${i:1}"                     url="${url// /%20}"                 fi                 lastmod="`date --iso-8601=วินาที -u -r "$i"`"                 # Google ต้องการเครื่องหมายทวิภาคหน้าสองหลักสุดท้าย                 lastmod="${lastmod::22}:00"                 ถ้าทดสอบ "${i: -5}" == .html; แล้ว                     # ไฟล์ HTML (รวมถึงโฮมเพจ) มีลำดับความสำคัญสูงสุด                     ลำดับความสำคัญ=1.0                 elif ทดสอบ "${i: -4}" == .txt; แล้ว                     # ไฟล์ข้อความมีลำดับความสำคัญปานกลาง                     ลำดับความสำคัญ=0.5                 อื่น                     # อย่างอื่น (ไฟล์ต้นฉบับ ฯลฯ) มีลำดับความสำคัญต่ำ                     ลำดับความสำคัญ=0.2                 fi                 echo "&lt;url>&lt;loc>$url&lt;/loc>&lt;lastmod>$lastmod&lt;/lastmod>&lt;priority>$priority&lt;/priority>&lt;/url>"             เสร็จแล้ว         ถ้า [ $trace -eq 1 -o $verbose -eq 1 ] ; แล้ว             set -o xtrace         fi         เสียงสะท้อน '&lt;/urlset>'     ) > แผนผังเว็บไซต์     gzip -f แผนผังเว็บไซต์ fi  # -------------------- ผลักดันการเปลี่ยนแปลงไปยังเซิร์ฟเวอร์ระยะไกล --------------------  # sourceforge ไม่อนุญาตให้เข้าถึงเชลล์อีกต่อไป ใช้ rsync ผ่าน ssh # ระบุผู้ใช้ของคุณใน .ssh/config  cd $htdocsdest  print_feedback "rsync ถึง sf" # ห้ามใช้ -a เพื่อหลีกเลี่ยง "ไม่สามารถตั้งค่าการอนุญาต" # -t รักษาเวลาในการแก้ไข แต่การเช็คเอาต์ svn ใหม่มี modtime ใหม่ rsync -e ssh -r -t ./ web.sourceforge.net:$remotehtdocs  กับดัก - 0 1 2 3 15 rm -rf $lockdir print_feedback '...docutils-update done'  # ตัวแปรท้องถิ่น: # เยื้องแท็บโหมด: ไม่มี # จบ:
+#!/bin/bash
+# This script updates the Docutils website safely
+
+set -e  # Exit immediately if a command exits with a non-zero status
+set -u  # Treat unset variables as an error
+
+# Function to print feedback messages
+print_feedback() {
+    if [[ "${feedback:-1}" -eq 1 ]]; then
+        echo "$1"
+    fi
+}
+
+# Function to handle cleanup on exit
+cleanup() {
+    rm -rf "$lockdir" || true
+    trap - EXIT
+}
+trap cleanup EXIT
+
+# Project setup
+svnurl="http://svn.code.sf.net/p/docutils/code/trunk"
+htmlfilelist="$(pwd)/htmlfiles.lst"
+basedir="$(pwd)/update-dir"
+
+# Create the base directory if it doesn't exist
+mkdir -p "$basedir"
+
+project="docutils"
+auxdir="$basedir/aux"
+mkdir -p "$auxdir"
+htdocsdest="$auxdir/htdocs"
+mkdir -p "$htdocsdest"
+snapshotdir="$auxdir/snapshots"
+mkdir -p "$snapshotdir"
+
+# Remote project setup
+remoteproject="/home/project-web/docutils"
+remotehtdocs="$remoteproject/htdocs"
+
+pylib="$auxdir/lib/python"
+lib="$pylib/$project"
+lockdir="$auxdir/lock"
+
+# Base URL for the project
+baseurl="http://docutils.sourceforge.net"
+
+export PYTHONPATH="$pylib:$lib:$lib/extras"
+export PATH="$lib/tools:$PATH"
+
+# Command-line options
+tracking=0
+unconditional=0
+verbose=0
+feedback=1
+
+while getopts "ftuvq" opt; do
+    case $opt in
+        f) feedback=0;;
+        t) tracking=1;;
+        u) unconditional=1;;
+        v) verbose=1;;
+        q) verbose=0;;
+        \?) exit 2;;
+    esac
+done
+shift $((OPTIND - 1))
+
+print_feedback 'Starting the document update process...'
+
+if [[ "$tracking" -eq 1 ]] || [[ "$verbose" -eq 1 ]]; then
+    set -o xtrace
+fi
+
+# Locking mechanism
+if ! mkdir "$lockdir"; then
+    echo "Cannot create lock directory at $lockdir. Ensure no other users are running this script."
+    exit 1
+fi
+chmod 0770 "$lockdir"  # Ensure directory permissions are correct
+
+# Update library
+if [[ -e "$lib" ]]; then
+    cd "$lib" || exit
+    svn up --quiet
+else
+    mkdir -p "$pylib"
+    cd "$pylib" || exit
+    svn checkout "$svnurl/docutils"
+fi
+
+# Create snapshots
+cd "$snapshotdir" || exit
+for DIR in web docutils sandbox; do
+    if [[ ! -d "$DIR" ]]; then
+        svn checkout "$svnurl/$DIR"
+    fi
+done
+
+# Create snapshots
+tar -cz --exclude='.svn' -f "$project-snapshot.tgz" "$project"
+tar -cz --exclude='.svn' -f "$project-sandbox-snapshot.tgz" sandbox
+
+# Update htdocs
+cd "$snapshotdir" || exit
+
+copy_to_htdocsdest() {
+    find "$@" -type d -name .svn -prune -o \( -type f -o -type l \) -print0 | \
+        xargs -0 cp --no-dereference --update --parents \
+            --target-directory="$htdocsdest"
+}
+
+# Update htdocs
+copy_to_htdocsdest sandbox
+(cd "$project" && copy_to_htdocsdest *)
+(cd web && copy_to_htdocsdest * .[^.]*)
+
+# Generate HTML files from .txt
+cd "$htdocsdest/tools" || exit
+find ../.. -name Makefile.docutils-update | while read -r makefile; do
+    dir=$(dirname "$makefile")
+    (cd "$dir" && make -f Makefile.docutils-update -s)
+done
+
+cd "$htdocsdest" || exit
+
+# Create empty or old HTML files to force HTML generation
+find documents -type f -name '*.txt' -print | while read -r txtfile; do
+    dir=$(dirname "$txtfile")
+    base=$(basename "$txtfile" .txt)
+    htmlfile="$dir/$base.html"
+    if [[ ! -e "$htmlfile" ]]; then
+        print_feedback "Touching $htmlfile"
+        touch -t 200001010101 "$htmlfile"
+    fi
+done
+
+# Generate HTML from .txt files
+for htmlfile in $(find . -name '*.html'); do
+    dir=$(dirname "$htmlfile")
+    base=$(basename "$htmlfile" .html)
+    txtfile="$dir/$base.txt"
+    [[ ! -e "$txtfile" ]] && txtfile="$dir/$base.rst"
+    [[ ! -e "$txtfile" ]] && txtfile="$dir/$base"
+    if [[ ! -e "$txtfile" ]]; then
+        print_feedback "Warning: Input not found: $dir $base"
+    else
+        if [[ "$unconditional" -eq 1 ]] || [[ "$txtfile" -nt "$htmlfile" ]]; then
+            if [[ "${base:0:4}" == "pep-" ]]; then
+                print_feedback "$txtfile (PEP)"
+                python "$lib/tools/rstpep2html.py" --config="$dir/docutils.conf" "$txtfile" "$htmlfile"
+            else
+                print_feedback "$txtfile"
+                python "$lib/tools/rst2html5.py" --config="$dir/docutils.conf" "$txtfile" "$htmlfile"
+            fi
+        fi
+    fi
+done
+
+# Generate sitemap XML for search engines
+cd "$htdocsdest" || exit
+if [[ -n "${haschanges:-}" ]]; then
+    {
+        echo '<?xml version="1.0" encoding="UTF-8"?>'
+        echo '<urlset xmlns="http://www.google.com/schema/sitemap/0.84">'
+        find . -name '.[^.]*' -prune -o -type d -printf '%p/\n' -o \( -type f -o -type l \) -print | while read -r i; do
+            if [[ "$i" == "./" ]]; then
+                i=index.html
+                url="$baseurl/"
+            elif [[ "$i" == "./sitemap" ]] || [[ "${i: -1}" == "/" && -f "${i}index.html" ]]; then
+                continue
+            else
+                url="$baseurl${i:1}"
+                url="${url// /%20}"
+            fi
+            lastmod=$(date --iso-8601=seconds -u -r "$i")
+            lastmod="${lastmod::22}:00"
+            if [[ "${i: -5}" == ".html" ]]; then
+                priority=1.0
+            elif [[ "${i: -4}" == ".txt" ]]; then
+                priority=0.5
+            else
+                priority=0.2
+            fi
+            echo "<url><loc>$url</loc><lastmod>$lastmod</lastmod><priority>$priority</priority></url>"
+        done
+        echo '</urlset>'
+    } > sitemap
+    gzip -f sitemap
+fi
+
+# Push changes to remote server
+cd "$htdocsdest" || exit
+print_feedback "Syncing to SF"
+rsync -e ssh -r -t ./ web.sourceforge.net:"$remotehtdocs"
+
+print_feedback '...docutils-update done'
